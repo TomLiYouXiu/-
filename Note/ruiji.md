@@ -284,3 +284,277 @@ public class EmployeeController {
     }
 ~~~
 
+### 完善登录功能
+
+配置过滤器或者拦截器
+
+![](https://pic.imgdb.cn/item/6374910c16f2c2beb1e4a307.jpg)
+
+~~~java
+package xyz.liyouxiu.reggie.filter;
+
+/**
+ * @author liyouxiu
+ * @date 2022/11/16 15:15
+ */
+
+import com.alibaba.fastjson.JSON;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.AntPathMatcher;
+import xyz.liyouxiu.reggie.common.R;
+
+import javax.servlet.*;
+import javax.servlet.annotation.WebFilter;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+/**
+ * 检测用户是否完成登录
+ */
+//配置拦截器名称和拦截路径
+@WebFilter(filterName = "loginCheckFilter",urlPatterns = "/*")
+@Slf4j
+public class LoginCheckFilter implements Filter {
+    //路径匹配器，支持通配符
+    public static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+
+    @Override
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
+        HttpServletRequest request = (HttpServletRequest) servletRequest;
+        HttpServletResponse response=(HttpServletResponse)servletResponse;
+        //1.获取本次请求的URI
+        String requestURI = request.getRequestURI();
+        //不需要处理的请求
+        String[] urls=new String[]{
+                "/employee/login",
+                "/employee/logout",
+                "/backend/**",
+                "/front/**"
+        };
+        //2.判断请求是否需要处理
+        boolean check = check(urls, requestURI);
+        //3.不需要处理则直接放行
+        if(check){
+            filterChain.doFilter(request,response);
+            return;
+        }
+        //4.判断登录状态，如果已登录，则直接放行
+        if(request.getSession().getAttribute("employee")!=null){
+            filterChain.doFilter(request,response);
+            return;
+        }
+        //5.如果没有登录返回未登录结果
+        //通过输出流的方式向客户端响应数据
+        response.getWriter().write(JSON.toJSONString(R.error("NOTLOGIN")));
+        return;
+
+    }
+
+    /**
+     * 路径匹配，检查本次请求是否需要放行
+     * @param urls
+     * @param requestURI
+     * @return
+     */
+    public boolean check(String[] urls,String requestURI){
+        for (String url : urls) {
+            boolean match = PATH_MATCHER.match(url, requestURI);
+            if(match){
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+~~~
+
+![](https://pic.imgdb.cn/item/63748e7516f2c2beb1e11a19.jpg)
+
+**功能测试**
+
+### 新增员工
+
+![](https://pic.imgdb.cn/item/6374a0ba16f2c2beb1012769.jpg)
+
+~~~java
+/**
+     * 新增员工
+     * @param employee
+     * @return
+     */
+    @PostMapping
+    public R<String> save (HttpServletRequest request,@RequestBody Employee employee){
+
+        //设置初始密码，MD5加密处理
+        employee.setPassword(DigestUtils.md5DigestAsHex("123456".getBytes()));
+        //其余信息设置
+        employee.setCreateTime(LocalDateTime.now());
+        employee.setUpdateTime(LocalDateTime.now());
+        //获得当前登录用户的ID
+        Long empId=(Long)request.getSession().getAttribute("employee");
+        employee.setCreateUser(empId);
+        employee.setUpdateUser(empId);
+
+        employeeService.save(employee);
+        log.info("新增员工，员工信息：{}",employee);
+        return R.success("新增员工成功");
+    }
+~~~
+
+### 全局异常捕获
+
+~~~java
+package xyz.liyouxiu.reggie.common;
+
+/**
+ * @author liyouxiu
+ * @date 2022/11/16 17:02
+ */
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.sql.SQLIntegrityConstraintViolationException;
+
+/**
+ * 全局异常处理
+ */
+@ControllerAdvice(annotations = {RestController.class, Controller.class})
+@ResponseBody
+@Slf4j
+public class GlobalExceptionHandler {
+
+    /**
+     * 异常处理方法
+     * @return
+     */
+    @ExceptionHandler(SQLIntegrityConstraintViolationException.class)
+    public R<String> exceptionsHandler(SQLIntegrityConstraintViolationException ex){
+        log.error(ex.getMessage());
+        //Duplicate entry
+        if(ex.getMessage().contains("Duplicate entry")){
+            String[] split = ex.getMessage().split(" ");
+            String msg = split[2]+"已存在";
+            return R.error(msg);
+        }
+        return R.error("未知错误");
+    }
+}
+~~~
+
+### 员工信息分页查询
+
+[![](https://pic.imgdb.cn/item/6374af6f16f2c2beb117f2b6.jpg)](https://pic.imgdb.cn/item/6374af6f16f2c2beb117f2b6.jpg)
+
+**设置分页插件**
+
+~~~java
+package xyz.liyouxiu.reggie.config;
+
+/**
+ * @author liyouxiu
+ * @date 2022/11/16 17:47
+ */
+
+import com.baomidou.mybatisplus.annotation.DbType;
+import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
+import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * 配置MP分页插件
+ */
+@Configuration
+public abstract class MyBatisPlusConfig {
+
+    @Bean
+    public MybatisPlusInterceptor mybatisPlusInterceptor(){
+        MybatisPlusInterceptor mybatisPlusInterceptor=new MybatisPlusInterceptor();
+        mybatisPlusInterceptor.addInnerInterceptor(new PaginationInnerInterceptor());
+        return mybatisPlusInterceptor;
+    }
+
+}
+
+~~~
+
+~~~java
+ /**
+     * 员工信息分页查询
+     * @param page
+     * @param pageSize
+     * @param name
+     * @return
+     */
+    @GetMapping("/page")
+    public R<Page> page(int page,int pageSize,String name){
+        log.info("page={},pageSize={},name={}",page,pageSize,name);
+        //构造分页构造器
+        Page pageInfo=new Page(page,pageSize);
+        //构条件构造器
+        LambdaQueryWrapper<Employee> queryWrapper=new LambdaQueryWrapper<>();
+        //添加过滤条件
+        queryWrapper.like(StringUtils.isNotEmpty(name),Employee::getName,name);
+        //添加排序条件
+        queryWrapper.orderByDesc(Employee::getUpdateTime);
+        //执行查询
+        employeeService.page(pageInfo,queryWrapper);
+        pageInfo.setTotal(pageInfo.getRecords().size());
+        return R.success(pageInfo);
+    }
+~~~
+
+### 启用/禁用员工账号
+
+**创建通用的员工修改信息的方法**
+
+~~~java
+/**
+     * 根据ID修改员工的信息
+     * @param employee
+     * @return
+     */
+    @PutMapping
+    public R<String> update(@RequestBody Employee employee,HttpServletRequest request){
+        log.info(employee.toString());
+        //设置跟新时间和更新人
+        employee.setUpdateTime(LocalDateTime.now());
+        Long updateUser=(Long)request.getSession().getAttribute("employee");
+        employee.setUpdateUser(updateUser);
+        employeeService.updateById(employee);
+        return R.success("员工信息修改成功");
+    }
+~~~
+
+js处理Long类型的代码时会丢失精度，可以使用String类型的数据
+
+使用组件SpringMVC的组件消息装换器
+
+### 编辑员工信息
+
+[![](https://pic.imgdb.cn/item/6378952916f2c2beb1fe6869.jpg)](https://pic.imgdb.cn/item/6378952916f2c2beb1fe6869.jpg)
+
+~~~java
+/**
+     * 根据ID查询员工信息
+     * @param id
+     * @return
+     */
+    @GetMapping("/{id}")
+    public R<Employee> getById(@PathVariable Long id){
+        log.info("根据ID查询员工信息");
+        Employee employee = employeeService.getById(id);
+        if(employee!=null){
+            return R.success(employee);
+        }
+        return R.error("没有查询到对应员工");
+    }
+~~~
+
