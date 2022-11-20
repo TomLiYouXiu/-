@@ -37,4 +37,14 @@ public class GlobalExceptionHandler {
         }
         return R.error("未知错误");
     }
+    /**
+     * 异常处理方法
+     * @return
+     */
+    @ExceptionHandler(CustomException.class)
+    public R<String> exceptionsHandler(CustomException ex){
+        log.error(ex.getMessage());
+        //Duplicate entry
+        return R.error(ex.getMessage());
+    }
 }

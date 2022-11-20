@@ -558,3 +558,110 @@ js处理Long类型的代码时会丢失精度，可以使用String类型的数�
     }
 ~~~
 
+### 公共字段自动填充
+
+[![](https://pic.imgdb.cn/item/6379ce5a16f2c2beb118a95d.jpg)](https://pic.imgdb.cn/item/6379ce5a16f2c2beb118a95d.jpg)
+
+ MybatisPlus公共字段自动填充，也就是在插入或者更新的时候为指定字段赋予指定的值，使用他的好处就是可以对字段进行统一的处理，避免了重复代码
+
+[![](https://pic.imgdb.cn/item/6379d18316f2c2beb11e47fc.jpg)](https://pic.imgdb.cn/item/6379d18316f2c2beb11e47fc.jpg)
+
+~~~java
+package xyz.liyouxiu.reggie.common;
+
+import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.ibatis.reflection.MetaObject;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
+
+/**
+ * @author liyouxiu
+ * @date 2022/11/20 15:07
+ * 自定义元素数据对象处理器
+ */
+@Component
+@Slf4j
+public class MyMetaObjecthandler implements MetaObjectHandler {
+    @Override
+    public void insertFill(MetaObject metaObject) {
+        log.info("公共字段自动填充【insertFill】");
+        log.info(metaObject.toString());
+        metaObject.setValue("createTime", LocalDateTime.now());
+        metaObject.setValue("updateTime", LocalDateTime.now());
+        metaObject.setValue("createUser",new Long(1));
+        metaObject.setValue("updateUser",new Long(1));
+    }
+
+    @Override
+    public void updateFill(MetaObject metaObject) {
+        log.info("公共字段自动填充【updateFill】");
+        log.info(metaObject.toString());
+        metaObject.setValue("updateTime", LocalDateTime.now());
+        metaObject.setValue("updateUser",new Long(1));
+    }
+}
+
+~~~
+
+**进行代码完善**
+
+[![](https://pic.imgdb.cn/item/6379d9bd16f2c2beb12bf324.jpg)](https://pic.imgdb.cn/item/6379d9bd16f2c2beb12bf324.jpg)
+
+[![](https://pic.imgdb.cn/item/6379dc7016f2c2beb1300b6c.jpg)](https://pic.imgdb.cn/item/6379dc7016f2c2beb1300b6c.jpg)
+
+
+
+### 新增分类
+
+~~~java
+ /**
+     * 新增分类
+     * @param category
+     * @return
+     */
+    @PostMapping
+    public R<String> save(@RequestBody Category category){
+        log.info("saving category");
+        categoryService.save(category);
+        return R.success("新增分类成功");
+    }
+~~~
+
+### 分类信息分页查询
+
+~~~java
+ /**
+     * 分页查询
+     * @param page
+     * @param pageSize
+     * @return
+     */
+    @GetMapping("/page")
+    public R<Page> page(int page, int pageSize){
+        log.info("page={},pageSize={}",page,pageSize);
+        //构造分页构造器
+        Page<Category> pageInfo=new Page(page,pageSize);
+        //构条件构造器
+        LambdaQueryWrapper<Category> queryWrapper=new LambdaQueryWrapper<>();
+        //添加过滤条件
+        //添加排序条件
+        queryWrapper.orderByDesc(Category::getSort);
+        //执行查询
+        categoryService.page(pageInfo,queryWrapper);
+        pageInfo.setTotal(pageInfo.getRecords().size());
+        return R.success(pageInfo);
+    }
+~~~
+
+### 删除分类
+
+需要查看是否存在关联
+
+[![](https://pic.imgdb.cn/item/637a28c216f2c2beb1acef42.jpg)](https://pic.imgdb.cn/item/637a28c216f2c2beb1acef42.jpg)
+
+### 修改分类
+
+直接Controller层进行控制即可
+

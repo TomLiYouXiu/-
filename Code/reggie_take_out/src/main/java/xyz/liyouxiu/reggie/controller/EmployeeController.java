@@ -86,12 +86,12 @@ public class EmployeeController {
         //设置初始密码，MD5加密处理
         employee.setPassword(DigestUtils.md5DigestAsHex("123456".getBytes()));
         //其余信息设置
-        employee.setCreateTime(LocalDateTime.now());
-        employee.setUpdateTime(LocalDateTime.now());
+//        employee.setCreateTime(LocalDateTime.now());
+//        employee.setUpdateTime(LocalDateTime.now());
         //获得当前登录用户的ID
         Long empId=(Long)request.getSession().getAttribute("employee");
-        employee.setCreateUser(empId);
-        employee.setUpdateUser(empId);
+//        employee.setCreateUser(empId);
+//        employee.setUpdateUser(empId);
 
         employeeService.save(employee);
         log.info("新增员工，员工信息：{}",employee);
@@ -131,9 +131,9 @@ public class EmployeeController {
     public R<String> update(@RequestBody Employee employee,HttpServletRequest request){
         log.info(employee.toString());
         //设置跟新时间和更新人
-        employee.setUpdateTime(LocalDateTime.now());
-        Long updateUser=(Long)request.getSession().getAttribute("employee");
-        employee.setUpdateUser(updateUser);
+//        employee.setUpdateTime(LocalDateTime.now());
+//        Long updateUser=(Long)request.getSession().getAttribute("employee");
+//        employee.setUpdateUser(updateUser);
         employeeService.updateById(employee);
         return R.success("员工信息修改成功");
     }
