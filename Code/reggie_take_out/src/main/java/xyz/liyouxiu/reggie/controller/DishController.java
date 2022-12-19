@@ -139,8 +139,56 @@ public class DishController {
             Dish byId = dishService.getById(s);
             lambdaQueryWrapper.eq(DishFlavor::getDishId,byId.getId());
             dishService.removeById(s);
-            dishFlavorService.removeById(lambdaQueryWrapper);
+            dishFlavorService.remove(lambdaQueryWrapper);
+            //删除图片
+
+
         }
         return R.success("删除成功");
+    }
+
+    @PostMapping("status/0")
+    public R<String> stop( String ids){
+        log.info(ids);
+        String[] split = ids.split(",");
+        Dish dish=new Dish();
+        for (String s : split) {
+            dish.setId(Long.valueOf(s));
+            dish.setStatus(0);
+            dishService.updateById(dish);
+        }
+        return R.success("修改成功");
+    }
+
+    @PostMapping("status/1")
+    public R<String> start(String ids ){
+        String[] split = ids.split(",");
+        Dish dish=new Dish();
+        for (String s : split) {
+            dish.setId(Long.valueOf(s));
+            dish.setStatus(1);
+            dishService.updateById(dish);
+        }
+        return R.success("修改成功");
+    }
+
+    /**
+     * 根据条件查询对应的菜品数据
+     * @param dish
+     * @return
+     */
+    @GetMapping("/list")
+    public R<List<Dish>> list(Dish dish){
+        //构造查询条件对象
+        LambdaQueryWrapper<Dish> lambdaQueryWrapper=new LambdaQueryWrapper<>();
+        //
+        lambdaQueryWrapper.eq(dish.getCategoryId()!=null,Dish::getCategoryId,dish.getCategoryId());
+        //只查询起售的食品
+        lambdaQueryWrapper.eq(Dish::getStatus,1);
+        //添加排序条件
+        lambdaQueryWrapper.orderByAsc(Dish::getSort).orderByAsc(Dish::getUpdateTime);
+
+        List<Dish> list = dishService.list(lambdaQueryWrapper);
+        return R.success(list);
     }
 }

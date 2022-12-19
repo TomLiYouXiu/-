@@ -23,4 +23,12 @@ public class BaseContext {
     public static void setThreadLocal(Long id) {
         threadLocal.set(id);
     }
+
+    /**
+     * 获取值
+     * @return
+     */
+    public static Long getCurrentId(){
+        return threadLocal.get();
+    }
 }

@@ -781,3 +781,176 @@ public class CommonController {
 类似添加？？
 
 ### 菜品管理（批量删除、起售停售）
+
+获取前端传来的数据，分词传入。然后REMOVE最后删除口味表
+
+### 新增套餐
+
+~~~java
+package xyz.liyouxiu.reggie.impl;
+
+
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import xyz.liyouxiu.reggie.dto.SetmealDto;
+import xyz.liyouxiu.reggie.entity.Setmeal;
+import xyz.liyouxiu.reggie.entity.SetmealDish;
+import xyz.liyouxiu.reggie.mapper.SetmealMapper;
+import xyz.liyouxiu.reggie.service.SetmealDishService;
+import xyz.liyouxiu.reggie.service.SetmealService;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+/**
+ * @author liyouxiu
+ * @date 2022/11/20 21:21
+ */
+@Service
+@Slf4j
+public class SetmealServiceImpl extends ServiceImpl<SetmealMapper,Setmeal> implements SetmealService{
+    @Autowired
+    private SetmealDishService setmealDishService;
+    /**
+     * 新增套餐，同时需要保存套餐和菜品的对应关系
+     * @param setmealDto
+     */
+    @Override
+    @Transactional//保证数据的一致性
+    public void saveWithDish(SetmealDto setmealDto) {
+        //保存套餐的基本信息
+        this.save(setmealDto);
+        //保存套餐和菜品的关联信息
+        List<SetmealDish> setmealDishes = setmealDto.getSetmealDishes();
+        setmealDishes.stream().map((item) -> {
+            item.setSetmealId(setmealDto.getId());
+            return item;
+        }).collect(Collectors.toList());
+        setmealDishService.saveBatch(setmealDishes);
+        //
+
+    }
+}
+
+~~~
+
+~~~java
+@PostMapping
+    public R<String> save(@RequestBody SetmealDto setmealDto){
+        log.info("{}",setmealDto);
+        setmealService.saveWithDish(setmealDto);
+        return R.success("新增套餐成功");
+    }
+~~~
+
+
+
+### 套餐信息分页查询
+
+~~~java
+@GetMapping("/page")
+    public R<Page> page(int page,int pageSize,String name){
+        //分页构造器对象
+        Page<Setmeal> pageInfo = new Page<Setmeal>(page,pageSize);
+        Page<SetmealDto> dtoPage=new Page<SetmealDto>(page,pageSize);
+
+        LambdaQueryWrapper<Setmeal> lambdaQueryWrapper=new LambdaQueryWrapper();
+        //添加查询条件，根据name进行like查询
+        lambdaQueryWrapper.like(name!=null,Setmeal::getName,name).orderByAsc(Setmeal::getUpdateTime);
+        setmealService.page(pageInfo,lambdaQueryWrapper);
+
+        //进行对象的拷贝
+        BeanUtils.copyProperties(pageInfo,dtoPage,"records");
+        List<Setmeal> records = pageInfo.getRecords();
+
+        List<SetmealDto> list=records.stream().map((item)->{
+            SetmealDto setmealDto=new SetmealDto();
+            //对象拷贝
+            BeanUtils.copyProperties(item,setmealDto);
+            //分类ID
+            Long categoryId = item.getCategoryId();
+            //根据ID查询分类的对象
+            Category category = categoryService.getById(categoryId);
+            if(category!=null){
+                String categoryName = category.getName();
+                setmealDto.setCategoryName(categoryName);
+            }
+            return setmealDto;
+        }).collect(Collectors.toList());
+
+        dtoPage.setRecords(list);
+
+        return R.success(dtoPage);
+    }
+~~~
+
+### 删除套餐
+
+只有停售的套餐才能进行停售
+
+### 套餐的修改、起售停售
+
+~~~java
+/**
+     * 起售停售商品
+     * @param ids
+     * @return
+     */
+    @PostMapping("status/0")
+    public R<String> start(@RequestParam List<Long> ids){
+        for (Long id : ids) {
+            Setmeal setmeal=new Setmeal();
+            setmeal.setId(id);
+            setmeal.setStatus(0);
+            setmealService.updateById(setmeal);
+            log.info("id{}",id);
+        }
+        return R.success("停售成功");
+    }
+
+    @PostMapping("status/1")
+    public R<String> stop(@RequestParam List<Long> ids){
+        for (Long id : ids) {
+            Setmeal setmeal=new Setmeal();
+            setmeal.setId(id);
+            setmeal.setStatus(1);
+            setmealService.updateById(setmeal);
+        }
+        return R.success("起售成功");
+    }
+    /**
+     * 根据ID查询菜品信息和口味信息
+     * @param id
+     * @return
+     */
+    @GetMapping("/{id}")
+    public R<SetmealDto> get(@PathVariable Long id){
+        //查询套餐表
+        Setmeal setmeal = setmealService.getById(id);
+        SetmealDto setmealDto = new SetmealDto();
+        BeanUtils.copyProperties(setmeal, setmealDto);
+
+//        查询套餐关联表
+        LambdaQueryWrapper<SetmealDish> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SetmealDish::getSetmealId, id);
+        List<SetmealDish> dishList = setmealDishService.list(wrapper);
+
+        setmealDto.setSetmealDishes(dishList);
+        return R.success(setmealDto);
+    }
+~~~
+
+### 短信发送
+
+直接调用阿里云的API进行使用
+
+此处代码涉及隐私不上传或者进行简单的更改
+
+### 用户登录
+
+### 地址管理
+
+### 菜品展示
